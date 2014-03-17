@@ -16,16 +16,18 @@ r_pieces = {}
 
 WHITE = 1
 BLACK = -1
-MAX_DEPTH = 4
+MAX_DEPTH = 3
 
 ENPASS = 41
 P_2STEP = 42
 KCASTLE_NO = 43
 QCASTLE_NO = 44
 CASTLE_NO = 45
+P_PROMOTE = 46
 
 KCASTLED = 46
 QCASTLED = 47
+prob_tree_size = 0
 
 def populate_board():
     p = pieces
@@ -41,6 +43,23 @@ def populate_board():
              [-1, -1,   p["BR"], p["BKt"],  p["BB"], p["BQ"], p["BK"], p["BB"], p["BKt"], p["BR"],  -1, -1],
              [-1, -1,        -1,       -1,       -1,      -1,      -1,      -1,       -1,      -1,  -1, -1],
              [-1, -1,        -1,       -1,       -1,      -1,      -1,      -1,       -1,      -1,  -1, -1]]
+
+
+
+
+#    board = [[-1, -1,        -1,       -1,       -1,      -1,      -1,      -1,       -1,      -1,  -1, -1],
+#             [-1, -1,        -1,       -1,       -1,      -1,      -1,      -1,       -1,      -1,  -1, -1],
+#             [-1, -1,   p["WR"],        0,  p["WB"],       0, p["WK"],       0,       0, p["WR"],  -1, -1],
+#             [-1, -1,         0,        0,  p["WB"], p["WP"],       0, p["WP"], p["WP"],  p["WP"],  -1, -1],
+#             [-1, -1,   p["WP"],        0, p["WKt"],       0, p["WP"],p["WKt"],        0,       0,  -1, -1],
+#             [-1, -1,         0,  p["WP"],        0,       0, p["BB"],       0,        0,       0,  -1, -1],
+#             [-1, -1,   p["BQ"],  p["BP"],  p["BP"],       0,       0,       0,        0,       0,  -1, -1],
+#             [-1, -1,   p["BP"],        0,        0,       0, p["BP"], p["BP"],  p["BP"],       0,  -1, -1],
+#             [-1, -1,   p["BR"],        0,        0, p["BP"],       0,       0,        0,  p["BP"],  -1, -1],
+#             [-1, -1,         0,        0,        0,       0, p["BK"], p["BB"], p["BKt"], p["BR"],  -1, -1],
+#             [-1, -1,        -1,       -1,       -1,      -1,      -1,      -1,       -1,      -1,  -1, -1],
+#             [-1, -1,        -1,       -1,       -1,      -1,      -1,      -1,       -1,      -1,  -1, -1]]
+#
               
     bt = [[i for i in range(12)] for j in range(12)]
     for i in range(12):
@@ -48,7 +67,10 @@ def populate_board():
             bt[i][j] = board[j][i]
     board = bt
 
-    board.extend([[True, True], # Castling (queenside and kingside) flags for white
+    board.extend( [
+                 [6, 2], # position of white king 
+                 [6, 9], # position of black king
+                  [True, True], # Castling (queenside and kingside) flags for white
                   [True, True], # Castling flags for black
                   [-1, -1,     False,    False,    False,   False,   False,   False,    False,   False,  -1, -1],  # en-passant flags for white
                   [-1, -1,     False,    False,    False,   False,   False,   False,    False,   False,  -1, -1]]  # en-passant flags for black
@@ -78,39 +100,64 @@ def dump_board(board):
     print board[-1][2:-2]
     print 
 
+def pawn_attack_moves(colour, p, board):
+    moves = []
+    for i in [1, -1]:
+        # Can I take something?
+        if board[p[0] + i][p[1] + colour] * colour <= -2:
+            moves.append([p[0], p[1], p[0] + i, p[1] + colour])
+
+    if colour == WHITE:
+        # Can I take something en-passant?
+        if p[1] == 5 + 1:
+            for i in [1, -1]:
+                if board[p[0] + i][p[1]] == -7 and board[-1][p[0] + i] == True:
+                    moves.append([p[0], p[1], p[0] + i, p[1] + colour, ENPASS])
+    else:
+        # Can I take something en-passant?
+        if p[1] == 4 + 1:
+            for i in [1, -1]:
+                if board[p[0] + i][p[1]] == 7 and board[-2][p[0] + i] == True:
+                    moves.append([p[0], p[1], p[0] + i, p[1] + colour, ENPASS])
+    return moves
+
+
 
 def pawn_moves(colour, p, board):
     moves = []
     # Can I move forward?
     if board[p[0]][p[1] + colour] == 0:
-        moves.append([p[0], p[1] + colour])
+        moves.append([p[0], p[1], p[0], p[1] + colour])
     for i in [1, -1]:
         # Can I take something?
-        if board[p[0] + i][p[1] + colour] * colour < -2:
-            moves.append([p[0] + i, p[1] + colour])
+        if board[p[0] + i][p[1] + colour] * colour <= -2:
+            moves.append([p[0], p[1], p[0] + i, p[1] + colour])
 
     if colour == WHITE:
         # If just starting out can move forward two squares
         if p[1] == 3 and board[p[0]][p[1] + 1] == 0 and board[p[0]][p[1] +2] == 0:
-            moves.append([p[0], p[1] + 2, P_2STEP])
+            moves.append([p[0], p[1], p[0], p[1] + 2, P_2STEP])
 
         # Can I take something en-passant?
         if p[1] == 5 + 1:
             for i in [1, -1]:
                 if board[p[0] + i][p[1]] == -7 and board[-1][p[0] + i] == True:
-                    moves.append([p[0] + i, p[1] + colour, ENPASS])
+                    moves.append([p[0], p[1], p[0] + i, p[1] + colour, ENPASS])
     else:
         if p[1] == 8 and board[p[0]][p[1] - 1] == 0 and board[p[0]][p[1] -2] == 0:
-            moves.append([p[0], p[1] - 2, P_2STEP])
+            moves.append([p[0], p[1], p[0], p[1] - 2, P_2STEP])
 
 
         # Can I take something en-passant?
         if p[1] == 4 + 1:
             for i in [1, -1]:
-                print board[p[0] + i][p[1]]
 
                 if board[p[0] + i][p[1]] == 7 and board[-2][p[0] + i] == True:
-                    moves.append([p[0] + i, p[1] + colour, ENPASS])
+                    moves.append([p[0], p[1], p[0] + i, p[1] + colour, ENPASS])
+
+    for m in moves:
+        if m[3] == 9:
+            m.append(P_PROMOTE)
 
     return moves
 
@@ -120,19 +167,19 @@ def rook_moves(colour, p, board):
     for k in (-1, 1):
         i = k
         while board[p[0]][p[1] + i] == 0:
-            moves.append([p[0],p[1] + i])
+            moves.append([p[0], p[1], p[0],p[1] + i])
             i += k
-        if board[p[0]][p[1] + i] * colour < -2:
-            moves.append([p[0],p[1] + i])
+        if board[p[0]][p[1] + i] * colour <= -2:
+            moves.append([p[0], p[1], p[0],p[1] + i])
 
 
     for k in (-1, 1):
         i = k
         while board[p[0] + i][p[1]] == 0:
-            moves.append([p[0] + i,p[1]])
+            moves.append([p[0], p[1], p[0] + i,p[1]])
             i += k
-        if board[p[0] + i][p[1]] * colour < -2:
-            moves.append([p[0] + i,p[1]])
+        if board[p[0] + i][p[1]] * colour <= -2:
+            moves.append([p[0], p[1], p[0] + i,p[1]])
 
     if colour == WHITE:
         if p[0] == 1 and p[1] == 1:
@@ -159,9 +206,9 @@ def knight_moves(colour, p, board):
                  (1,-2), (2, -1),
                  (-1,-2), (-2, -1),
                  (-1,2), (-2, 1)]:
-        if board[p[0] + i][p[1] + j] * colour < -2 or \
+        if board[p[0] + i][p[1] + j] * colour <= -2 or \
            board[p[0] + i][p[1] + j] == 0:
-               moves.append([p[0] + i,p[1] + j])
+               moves.append([p[0], p[1], p[0] + i,p[1] + j])
 
     return moves
 
@@ -171,11 +218,11 @@ def bishop_moves(colour, p, board):
     for a, b in [(1,1), (1, -1), (-1, -1), (-1, 1)]:
         i, j = (a, b)
         while board[p[0] + i][p[1] + j] == 0:
-            moves.append([p[0] + i,p[1] + j])
+            moves.append([p[0], p[1], p[0] + i,p[1] + j])
             i += a
             j += b
-        if board[p[0] + i][p[1] + j] * colour < -2:
-            moves.append([p[0] + i,p[1] + j])
+        if board[p[0] + i][p[1] + j] * colour <= -2:
+            moves.append([p[0], p[1], p[0] + i,p[1] + j])
 
     return moves
 
@@ -185,48 +232,64 @@ def queen_moves(colour, p, board):
     moves.extend(rook_moves(colour, p, board))
     return moves
 
+def king_attack_moves(colour, p, board):
+    moves = []
+    for i,j in [(1, 0), (1, 1), 
+                (0, 1), (-1, 1),
+                (-1, 0), (-1, -1),
+                (0, -1), (1, -1)]:
+        if board[p[0] + i][p[1] + j] * colour <= -2 or \
+           board[p[0] + i][p[1] + j] == 0:
+               moves.append([p[0], p[1], p[0] + i,p[1] + j, CASTLE_NO])
+    return moves
+
+
 def king_moves(colour, p, board):
     moves = []
     for i,j in [(1, 0), (1, 1), 
                 (0, 1), (-1, 1),
                 (-1, 0), (-1, -1),
                 (0, -1), (1, -1)]:
-        if board[p[0] + i][p[1] + j] * colour < -2 or \
+        if board[p[0] + i][p[1] + j] * colour <= -2 or \
            board[p[0] + i][p[1] + j] == 0:
-               moves.append([p[0] + i,p[1] + j, CASTLE_NO])
+               moves.append([p[0], p[1], p[0] + i,p[1] + j, CASTLE_NO])
 
     if colour == WHITE:
         if board[-4][0] == True: # queenside castling
-            c_sq = [(5,2), (4,2)]
+            c_sq = [[5,2], [4,2]]
             if board[c_sq[0][0]][c_sq[0][1]] == 0 and board[c_sq[1][0]][c_sq[1][1]] == 0:
                 attacked_sqs = attacked_squares(colour * -1, board)
-                if not c_sq in attacked_sqs:
-                    moves.append([c_sq[1][0], c_sq[1][1], QCASTLED, CASTLE_NO])
+                if not (c_sq[0] in attacked_sqs or c_sq[1] in attacked_sqs):
+                    moves.append([p[0], p[1], c_sq[1][0], c_sq[1][1], QCASTLED, CASTLE_NO])
         if board[-4][1] == True: # kingside castling
-            c_sq = [(7,2), (8,2)]
+            c_sq = [[7,2], [8,2]]
             if board[c_sq[0][0]][c_sq[0][1]] == 0 and board[c_sq[1][0]][c_sq[1][1]] == 0:
                 attacked_sqs = attacked_squares(colour * -1, board)
-                if not c_sq in attacked_sqs:
-                    moves.append([c_sq[1][0], c_sq[1][1], KCASTLED, CASTLE_NO])
+                if not (c_sq[0] in attacked_sqs or c_sq[1] in attacked_sqs):
+                    moves.append([p[0], p[1], c_sq[1][0], c_sq[1][1], KCASTLED, CASTLE_NO])
     if colour == BLACK:
         if board[-3][0] == True: # queenside castling
-            c_sq = [(5,9), (4,9)]
+            c_sq = [[5,9], [4,9]]
             if board[c_sq[0][0]][c_sq[0][1]] == 0 and board[c_sq[1][0]][c_sq[1][1]] == 0:
                 attacked_sqs = attacked_squares(colour * -1, board)
-                if not c_sq in attacked_sqs:
-                    moves.append([c_sq[1][0], c_sq[1][1], QCASTLED, CASTLE_NO])
+                if not (c_sq[0] in attacked_sqs or c_sq[1] in attacked_sqs):
+                    moves.append([p[0], p[1], c_sq[1][0], c_sq[1][1], QCASTLED, CASTLE_NO])
         if board[-3][1] == True: # kingside castling
-            c_sq = [(7,9), (8,9)]
+            c_sq = [[7,9], [8,9]]
             if board[c_sq[0][0]][c_sq[0][1]] == 0 and board[c_sq[1][0]][c_sq[1][1]] == 0:
                 attacked_sqs = attacked_squares(colour * -1, board)
-                if not c_sq in attacked_sqs:
-                    moves.append([c_sq[1][0], c_sq[1][1], KCASTLED, CASTLE_NO])
+                if not (c_sq[0] in attacked_sqs or c_sq[1] in attacked_sqs):
+                    moves.append([p[0], p[1], c_sq[1][0], c_sq[1][1], KCASTLED, CASTLE_NO])
 
 
 
     return moves
 
-moves = {"WR"  : rook_moves}
+attack_moves = {"WR" : rook_moves, "WKt" : knight_moves, "WB" : bishop_moves,
+         "WQ" : queen_moves, "WK" : king_attack_moves, "WP" : pawn_moves,
+         "BR" : rook_moves, "BKt" : knight_moves, "BB" : bishop_moves,
+         "BQ" : queen_moves, "BK" : king_moves, "BP" : pawn_attack_moves}
+
 moves = {"WR" : rook_moves, "WKt" : knight_moves, "WB" : bishop_moves,
          "WQ" : queen_moves, "WK" : king_moves, "WP" : pawn_moves,
          "BR" : rook_moves, "BKt" : knight_moves, "BB" : bishop_moves,
@@ -244,7 +307,6 @@ def mr(position):
     return "%s%d" % (row[position[0] - 2], position[1] -1)
 
 def attacked_squares(colour, board):
-    # n.b. this will be wrong for pawns
     all_moves = []
     for j in range(9, 1, -1):
         for i in range(2, 10):
@@ -252,8 +314,17 @@ def attacked_squares(colour, board):
             # piece of the same colour
             # we are generating moves for
             if board[i][j] * colour >= 2:
-                all_moves.append(m[0:2] for m in moves[r_pieces[board[i][j]]](colour, (i, j), board))
+                all_moves.extend([m[2:4] for m in attack_moves[r_pieces[board[i][j]]](colour, (i, j), board)])
     return all_moves
+
+def find_piece(board, piece):
+    for j in range(9, 1, -1):
+        for i in range(2, 10):
+            if board[i][j] == piece:
+                return [i,j]
+    return None
+
+
 
 
 def gen_moves(colour, board):
@@ -272,58 +343,80 @@ def gen_moves(colour, board):
             if board[i][j] * colour >= 2:
                 for m in moves[r_pieces[board[i][j]]](colour, (i, j), board):
                     new_board = [x[:] for x in board]
-                    new_board[i][j] = 0
-
-                    # If pawn is being taken en-passant remove the pawn 
-                    # that has just been taken
-                    if m[-1] == ENPASS:
-                        new_board[m[0]][m[1] - colour] = 0
-                    elif m[-1] == P_2STEP:
-                        if colour == WHITE:
-                            new_board[-2][m[0]] = True # set en-passant flag
-                        else: 
-                            new_board[-1][m[0]] = True # set en-passant flag
-
-                    elif m[-1] == QCASTLE_NO:
-                        if colour == WHITE:
-                            new_board[-4][0] = False
-                        else:
-                            new_board[-3][0] = False
-                    elif m[-1] == KCASTLE_NO:
-                        if colour == WHITE:
-                            new_board[-4][1] = False
-                        else:
-                            new_board[-3][1] = False
-                    elif m[-1] == CASTLE_NO:
-                        if colour == WHITE:
-                            new_board[-4][0] = False
-                            new_board[-4][1] = False
-                        else:
-                            new_board[-3][0] = False
-                            new_board[-3][1] = False
-                    if m[-2] == KCASTLED:
-                        new_board[m[0] + 1][m[1]] = 0
-                        new_board[m[0] - 1][m[1]] = pieces["WR"] * colour
-                    elif m[-2] == QCASTLED:
-                        new_board[m[0] - 2][m[1]] = 0
-                        new_board[m[0] + 1][m[1]] = pieces["WR"] * colour
-
-
-
-                    new_board[m[0]][m[1]] = board[i][j] 
-                    move_string = r_pieces[board[i][j]] + " " +mr((m[0], m[1]))
+                    make_move(m, colour, new_board)
+                    move_string = r_pieces[board[i][j]] + " " +mr((m[2], m[3]))
 
                     boards.append((new_board, move_string))
 
     return boards
 
+def make_move(m, colour, board):
+
+    if board[m[0]][m[1]] == pieces["WK"] * colour:
+        if colour == WHITE:
+            board[-6] = (m[0], m[1])
+        else:
+            board[-5] = (m[0], m[1])
+
+
+
+
+    if m[-1] == ENPASS:
+        board[m[2]][m[3] - colour] = 0
+    elif m[-1] == P_2STEP:
+        if colour == WHITE:
+            board[-2][m[2]] = True # set en-passant flag
+        else: 
+            board[-1][m[2]] = True # set en-passant flag
+    
+    elif m[-1] == QCASTLE_NO:
+        if colour == WHITE:
+            board[-4][0] = False
+        else:
+            board[-3][0] = False
+    elif m[-1] == KCASTLE_NO:
+        if colour == WHITE:
+            board[-4][1] = False
+        else:
+            board[-3][1] = False
+    elif m[-1] == CASTLE_NO:
+        if colour == WHITE:
+            board[-4][0] = False
+            board[-4][1] = False
+        else:
+            board[-3][0] = False
+            board[-3][1] = False
+    if m[-2] == KCASTLED:
+        board[m[2] + 1][m[3]] = 0
+        board[m[2] - 1][m[3]] = pieces["WR"] * colour
+    elif m[-2] == QCASTLED:
+        board[m[2] - 2][m[3]] = 0
+        board[m[2] + 1][m[3]] = pieces["WR"] * colour
+
+    board[m[2]][m[3]] = board[m[0]][m[1]] 
+    board[m[0]][m[1]] = 0
+
+    if m[-1] == P_PROMOTE:
+        print "Promoting pawn!"
+        board[m[2]][m[3]] = pieces["WQ"] * colour
+    
+
+
+
 def evaluate(board):
+    global prob_tree_size
+    prob_tree_size += 1
     evaluation = 0
     for j in range(9, 1, -1):
         for i in range(2, 10):
             if not board[i][j] == 0:
                 evaluation += piece_values[r_pieces[board[i][j]]]
 
+
+    
+
+    evaluation += float(len(attacked_squares(WHITE, board))) * 0.1
+    evaluation += float(len(attacked_squares(BLACK, board))) * -0.1
     return evaluation
 
 def play(colour, board, move_no, move_string = "", moves_ahead = 0):
@@ -354,29 +447,30 @@ def play(colour, board, move_no, move_string = "", moves_ahead = 0):
     else:
         return min(moves, key = lambda i : i[0])
 
-
-
-
 for (k, v) in pieces.items():
     r_pieces[v] = k
 
-board = populate_board()
-dump_board(board)
-# print evaluate(board)
-b1 = board
 
 
-
-colour = WHITE
-move = 0
-for i in range(100):
-    print "Plie: %d" % i
-    move += 1
-    tick = time.time()
-    e, b, s, b1 = play(colour,b1,move)
-    tock = time.time()
-    print "Time for move: %d" % (tock - tick)
-    colour *= -1
-    dump_board(b1)
-    print s
-    print 
+# if __name__ == "__main__":
+# 
+#     board = populate_board()
+#     dump_board(board)
+#     # print evaluate(board)
+#     b1 = board
+#     
+#     
+#     
+#     colour = WHITE
+#     move = 0
+#     for i in range(100):
+#         print "Plie: %d" % i
+#         move += 1
+#         tick = time.time()
+#         e, b, s, b1 = play(colour,b1,move)
+#         tock = time.time()
+#         print "Time for move: %d" % (tock - tick)
+#         colour *= -1
+#         dump_board(b1)
+#         print s
+#         print 

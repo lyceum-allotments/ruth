@@ -1,7 +1,5 @@
 import copy
 import time
-# TODO
-# 
 
 board = []
 pieces = {"0" : 0, 
@@ -326,7 +324,7 @@ def evaluate(board):
 
     return evaluation
 
-def play(colour, board, move_no, move_string = "", moves_ahead = 0):
+def play(colour, board, move_no, move_string, moves_ahead = 0):
     if moves_ahead == MAX_DEPTH:
         return (evaluate(board), board, move_string)
     new_move_no = move_no + moves_ahead
@@ -373,7 +371,7 @@ for i in range(100):
     print "Plie: %d" % i
     move += 1
     tick = time.time()
-    e, b, s, b1 = play(colour,b1,move)
+    e, b, s, b1 = play(colour,b1,move, "")
     tock = time.time()
     print "Time for move: %d" % (tock - tick)
     colour *= -1

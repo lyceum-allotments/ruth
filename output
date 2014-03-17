@@ -1,0 +1,19 @@
+
+   8   BR  BKt   BB   BQ   BK   BB  BKt   BR 
+   7   BP   BP   BP   BP   BP   BP   BP   BP 
+   6    0    0    0    0    0    0    0    0 
+   5    0    0    0    0    0    0    0    0 
+   4    0    0    0    0    0    0    0    0 
+   3    0    0    0    0    0    0    0    0 
+   2   WP   WP   WP   WP   WP   WP   WP   WP 
+   1   WR  WKt   WB   WQ   WK   WB  WKt   WR 
+        A    B    C    D    E    F    G    H
+White castle: Q: True, K: True
+Black castle: Q: True, K: True
+
+Enpassant white:
+[False, False, False, False, False, False, False, False]
+Enpassant black:
+[False, False, False, False, False, False, False, False]
+
+Plie: 0
